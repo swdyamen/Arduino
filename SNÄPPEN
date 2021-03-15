@@ -1,5 +1,9 @@
-//10/03/2021
-//TELESKOPRÖR MED SNÄPPEN
+/* 10/03/2021
+This project help the factory to produce "TELESKOPRÖR MED SNÄPPEN":
+please find more information below:
+http://www.json-prod.se/index.php/produkter/plastdetaljer/teleskoproer-korta-med-snaeppen
+https://youtu.be/SpIEiP_VA5k
+*/
 
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 20, 4); // set the LCD address to 0x27 for a 16 chars and 2 line display
