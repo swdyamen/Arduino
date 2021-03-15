@@ -1,0 +1,717 @@
+//10/03/2021
+//Json 2021
+
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 20, 4); // set the LCD address to 0x27 for a 16 chars and 2 line display
+
+#include <AccelStepper.h>  // Stepper Library
+
+
+const int SwitchPinDown = 50; // Switch Up
+const int SwitchPinLeft = 48; // Switch Left
+const int SwitchPinBack = 33; // Switch Left
+
+
+AccelStepper stepperX(1, 13, 10);  // mystepper(1, pinStep, pinDirection)
+AccelStepper stepperY(1, 4, 7);  //
+AccelStepper stepperZ(1, 12, 6);  //
+AccelStepper stepperA(1, 52, 22);  //
+
+
+const int buttonPinL = 11;     // the pushbutton pin
+const int buttonPinR = 2;     // the number of the pushbutton pin
+const int relay = 5 ;   // Air Valve Switch
+const int AirRelay = 3;
+const int pushB  = 31 ;
+int pushBon = 0;
+
+////// Laser with movment
+//const int steperZS = 52;
+//const int steperZD = 22;
+
+const int Laser = 8;
+const int Detector = 9;
+
+boolean goOn = 0;
+boolean firstopen = 0;
+
+int steperSpeedY = 100;
+int steperSpeedX = 100;
+int steperSpeedZ = 50;
+int steperSpeedA = 50;
+int stepperXSet = 0;
+int stepperXMSet = 2300;
+
+
+
+/////
+#define trigPin 47
+#define echoPin 51
+long duration;
+int distance;
+
+int relayon = 0;
+int AirRelayon = 0;
+
+
+
+
+
+int buttonStateL = 0;         // variable for reading the pushbutton status
+int buttonStateR = 0;         // variable for reading the pushbutton status
+
+int milling_pipe = 0;
+int operationStepOne = 0;
+
+
+
+int TotalHole = 6; // Trip
+int CountHole = 0; // Trip
+
+boolean OprationStop = 0;
+
+int ButtonStopp() {//stopp
+  buttonStateR = digitalRead(buttonPinR);
+  if (buttonStateR == HIGH) {
+
+    operationStepOne = 1;//1
+    pushBStatus(0);
+    digitalWrite(Laser, LOW);
+    lcd.noBlink();
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("");
+    lcd.setCursor(2, 1);
+    lcd.print("Operation Stopp");
+    lcd.setCursor(0, 2);
+    lcd.print("");
+    delay(50);
+    OprationStop = 1;
+
+
+
+  }
+}
+
+int ButtonStart() {
+
+  buttonStateL = digitalRead(buttonPinL);
+  if (buttonStateL == HIGH) {
+
+    operationStepOne = 2;
+
+
+    lcd.noBlink();
+    lcd.clear();
+    lcd.setCursor(3, 0);
+    lcd.print("");
+    lcd.setCursor(2, 1);
+    lcd.print("Operation Start");
+    lcd.setCursor(0, 2);
+    lcd.print("");
+    delay(50);
+
+
+  }
+}
+
+//Measure the distance
+int WDistance() {
+  // Clear the trigPin by setting it LOW:
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(5);
+  // Trigger the sensor by setting the trigPin high for 10 microseconds:
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  // Read the echoPin, pulseIn() returns the duration (length of the pulse) in microseconds:
+  duration = 0;
+  distance = 0;
+  duration = pulseIn(echoPin, HIGH);
+  // Calculate the distance:
+  distance = duration * 0.034 / 2 * 100;
+  // Print the distance on the Serial Monitor (Ctrl+Shift+M):
+  //Serial.print("Distance = ");
+  //Serial.print(distance);
+  //Serial.println(" mm");
+  //delay(50);
+}
+
+
+
+int RelayStatus(int OnOffs) {
+
+  if (OnOffs == 1) {
+    digitalWrite(relay, HIGH);
+    relayon = 1;
+  } else {
+
+    digitalWrite(relay, LOW);
+    relayon = 0;
+  }
+}
+
+// AirRelay Status on off
+int AirRelayStatus(int OnOffTrimmer) {
+
+  if (OnOffTrimmer == 1) {
+    digitalWrite(AirRelay, HIGH);
+  } else {
+    digitalWrite(AirRelay, LOW);
+  }
+}
+
+int pushBStatus(int OnOffs) {//push
+
+  if (OnOffs == 1) {
+    digitalWrite(pushB, HIGH);
+    pushBon = 1;
+  } else {
+
+    digitalWrite(pushB, LOW);
+    pushBon = 0;
+  }
+}
+
+
+int SwitchOnOff() {//Switch
+
+  operationStepOne = 1;
+  pushBStatus(0);
+  digitalWrite(Laser, LOW);
+  lcd.noBlink();
+  lcd.clear();
+  lcd.setCursor(3, 0);
+  lcd.print("");
+  lcd.setCursor(2, 1);
+  lcd.print("Operation Stopp");
+  lcd.setCursor(0, 2);
+  lcd.print("");
+  delay(50);
+  OprationStop = 1;
+
+
+}
+
+
+
+
+const int MoveXDown = 16800;
+const int MoveXUpp = -16800;
+
+const int MoveYDown = 20200;
+const int MoveYUpp = -20200;
+
+
+const int MoveZDown = -3000;
+int MoveZDownTo = 0;
+
+
+int MoveZDownbefor = 40; // * MoveZ Downbe
+int MoveZDownAfter = 1100; //After one trip
+
+
+
+int MoveDes = 550; // to down DA
+int MoveDestoup = 780; //to up DB
+
+int CountTravelTotal = 2; // Trip
+int CountTravel = 0;
+
+int YamenCount = 0;
+
+
+void setup() {
+
+
+  // initialize the lcd
+  lcd.init();
+  // Print a message to the LCD.
+  lcd.backlight();
+  //lcd.setCursor(3,0);
+  //lcd.clear();
+  lcd.setCursor(3, 0);
+  lcd.print("");
+  lcd.setCursor(4, 1);
+  lcd.print("Hello, J:Son");
+  lcd.setCursor(0, 2);
+  lcd.print("");
+
+  lcd.setCursor(5, 3);
+  lcd.print("Ready To Go....");
+  // initialize the lcd
+
+
+
+  /////// Lazer
+  pinMode(Laser, OUTPUT);
+  pinMode(Detector, INPUT);
+  //pinMode(steperZD, OUTPUT);
+  //pinMode(steperZS, OUTPUT);
+
+  //////
+
+
+  Serial.begin(9600);
+
+
+
+  pinMode(buttonPinR, INPUT);
+  pinMode(buttonPinL, INPUT);
+
+  pinMode(relay, OUTPUT);
+  pinMode(AirRelay, OUTPUT);
+  pinMode(pushB, OUTPUT);
+
+  pinMode(SwitchPinDown, INPUT);
+  pinMode(SwitchPinBack, INPUT);
+  pinMode(SwitchPinLeft, INPUT);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  //Stepper parameters
+  //setting up some default values for maximum speed and maximum acceleration
+  stepperX.setMaxSpeed(20000.0); //SPEED = Steps / second
+  stepperX.setAcceleration(20000.0); //ACCELERATION = Steps /(second)^2
+
+  stepperY.setMaxSpeed(20000.0); //SPEED = Steps / second
+  stepperY.setAcceleration(20000.0); //ACCELERATION = Steps /(second)^2
+
+  stepperZ.setMaxSpeed(7000.0); //SPEED = Steps / second
+  stepperZ.setAcceleration(7000.0); //ACCELERATION = Steps /(second)^2
+
+  stepperA.setMaxSpeed(3000000.0); //SPEED = Steps / second
+  stepperA.setAcceleration(3000000.0); //ACCELERATION = Steps /(second)^2
+
+
+
+}
+
+
+
+
+void loop() {
+
+
+
+  ButtonStart();
+  ButtonStopp();
+
+
+  switch (operationStepOne) {
+    case 0: //operationStepOne 0
+      //digitalWrite(Laser, HIGH);
+      ButtonStart();
+      break;
+
+    case 1: //Stopp All Go to 0 operationStepOne 1
+
+      AirRelayStatus(0);
+      stepperZ.moveTo(0);
+      while (stepperZ.currentPosition() != 0) // Full speed up to 300
+
+        stepperZ.run();
+      //stepper.stop(); // Stop as fast as possible: sets new target
+      stepperZ.runToPosition();
+
+      stepperX.moveTo(0);
+      while (stepperX.currentPosition() != 0) // Full speed up to 300
+
+        stepperX.run();
+      //stepper.stop(); // Stop as fast as possible: sets new target
+      stepperX.runToPosition();
+
+      stepperY.moveTo(0);
+      while (stepperY.currentPosition() != 0) // Full speed up to 300
+
+        stepperY.run();
+      //stepper.stop(); // Stop as fast as possible: sets new target
+      stepperY.runToPosition();
+      firstopen = 0;
+      RelayStatus(0);
+      if (OprationStop == 0)
+      {
+        if (CountHole >= TotalHole) {
+          lcd.clear();
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Finished");
+          lcd.blink();
+        } else {
+          goOn = 1;
+          operationStepOne = 4;
+        }
+      }
+
+
+      break;
+
+    case 2: //Start Go down operationStepOne 2
+
+      digitalWrite(Laser, LOW);
+
+      if (relayon == 0) {
+        pushBStatus(1);
+        delay(500);
+        //pushBStatus(0);
+        RelayStatus(1);
+        delay(500);
+      }
+
+      WDistance();
+
+      lcd.clear();
+      lcd.setCursor(0, 1);
+      lcd.print("DB=");
+      lcd.print(distance);
+      lcd.blink();
+
+
+      MoveZDownTo = (distance - MoveDes) * MoveZDownbefor;
+
+      stepperZ.moveTo(-MoveZDownTo);
+
+      while (digitalRead(SwitchPinDown) == HIGH and stepperZ.currentPosition() != -MoveZDownTo )  //
+        stepperZ.run();
+      WDistance();
+      //lcd.clear();
+      lcd.setCursor(8, 1);
+      lcd.print("currentPosition= ");
+      lcd.print(stepperZ.currentPosition());
+      lcd.blink();
+      operationStepOne = 3;
+      if (digitalRead(SwitchPinDown) == LOW) {
+        SwitchOnOff();
+      }
+      stepperZ.stop(); // Stop as fast as possible: sets new target
+
+
+
+
+      break;
+
+    case 3: //operationStepOne 3
+
+      switch (milling_pipe) {// Start milling
+
+        case 0:
+
+          //lcd.clear();
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+
+          MoveZDownTo = MoveZDownTo + MoveZDownAfter ;
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+
+            stepperZ.moveTo(-MoveZDownTo);
+
+            while (digitalRead(SwitchPinDown) == HIGH and stepperZ.currentPosition() != -MoveZDownTo ) {
+              stepperZ.run();
+              if (digitalRead(SwitchPinDown) == LOW) {
+                SwitchOnOff();
+              }
+            }
+            stepperZ.stop(); // Stop as fast as possible: sets new target
+
+          }
+
+
+          AirRelayStatus(1);
+
+          stepperX.move(MoveXDown);//
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperX.runToPosition();
+            milling_pipe = 1;
+          }
+          break;
+
+        case 1:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+
+          stepperY.move(MoveYDown);
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperY.runToPosition();
+            milling_pipe = 2;
+          }
+
+          break;
+        case 2:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+
+          stepperX.move(MoveXUpp);
+
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperX.runToPosition();
+            milling_pipe = 7;
+          }
+
+          break;
+
+        case 3:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+          stepperX.move(MoveXDown);
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperX.runToPosition();
+            goOn = 1;
+            milling_pipe = 4;
+          } //stepper.stop(); // Stop as fast as possible: sets new target
+
+          break;
+
+        case 4:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+          stepperY.move(MoveYUpp);
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperY.runToPosition();
+            milling_pipe = 5;
+          }
+          break;
+
+        case 5:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+          stepperX.move(MoveXUpp);
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+            stepperX.runToPosition();
+            milling_pipe = 6;
+          }
+          break;
+
+        case 6:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+          CountTravel++;
+          if (CountTravel >= CountTravelTotal) {
+
+            CountTravel = 0;
+
+            lcd.setCursor(0, 3);
+            lcd.print("Count=");
+            lcd.print(CountTravel);
+            lcd.blink();
+
+            operationStepOne = 1;
+            milling_pipe = 0;
+
+          } else {
+            milling_pipe = 0;
+
+            //lcd.clear();
+            lcd.setCursor(0, 3);
+            lcd.print("Count=");
+            lcd.print(CountTravel);
+            lcd.blink();
+
+          }
+          break;
+
+        case 7:
+
+          lcd.setCursor(0, 2);
+          lcd.print("Operation Status=");
+          lcd.print(milling_pipe);
+          lcd.blink();
+          MoveZDownTo = MoveZDownTo + MoveZDownAfter ;
+
+
+
+          if (buttonStateR == HIGH) {
+            Serial.print('\n');
+            Serial.print("buttonStateR and milling_pipe = ");
+            Serial.print(milling_pipe);
+            ButtonStopp();
+            break;
+          } else {
+
+            stepperZ.moveTo(-MoveZDownTo);
+            stepperZ.runToPosition();
+
+            milling_pipe = 3;
+
+
+
+
+          }
+
+          break;
+
+      }
+
+      break;
+
+    case 4: //Go round the pipe operationStepOne 4
+
+
+
+      if (goOn == 0) {
+
+
+        digitalWrite(Laser, HIGH);
+        boolean val = digitalRead(Detector);
+        if (val == 1) {
+
+          if (firstopen == 0 and val == 1) {
+            digitalWrite(Laser, LOW);
+            //stepperA.move(-5);
+            //stepperA.run();
+            firstopen = 1;
+            pushBStatus(0);
+            for (int n = 0; n < 200; n++) {
+              stepperA.move(-10);
+              stepperA.run();
+            }
+
+          }
+          digitalWrite(Laser, HIGH);
+          boolean val = digitalRead(Detector);
+          if (firstopen == 1 and val == 1) {
+            digitalWrite(Laser, LOW);
+            firstopen = 0;
+            operationStepOne = 2;
+            pushBStatus(1);
+            delay(500);
+            pushBStatus(0);
+            
+            CountHole++;
+            if (CountHole >= TotalHole) {
+              lcd.clear();
+              lcd.setCursor(0, 2);
+              lcd.print("Operation Finished");
+              lcd.blink();
+              operationStepOne = 6;//0
+
+            } else {
+              lcd.clear();
+              lcd.setCursor(0, 2);
+              lcd.print("CountHole= ");
+              lcd.print(CountHole);
+              lcd.blink();
+
+            }
+          }
+
+
+
+        } else if (val == 0) {
+          stepperA.move(-20);
+          stepperA.run();
+        }
+
+      } else {
+        delay(1500);
+        pushBStatus(0);
+        for (int n = 0; n < 300; n++) {
+          stepperA.move(-10);
+          stepperA.run();
+        }
+        goOn = 0;
+
+      }
+
+
+      break;
+    case 5: // operationStepOne 5 Testing
+      //delay(1500);
+
+      pushBStatus(1);
+      break;
+
+
+    case 6: //operationStepOne 6 Testing
+      
+      
+      if (digitalRead(SwitchPinBack) == HIGH) {
+        stepperX.move(-stepperXSet);
+        stepperX.runToPosition();
+        stepperXSet ++;
+
+      }
+      //
+      //stepperX.stop();
+
+      if (digitalRead(SwitchPinBack) == LOW) {
+        stepperX.move(stepperXMSet);
+        stepperX.runToPosition();
+        lcd.clear();
+        lcd.setCursor(2, 2);
+        lcd.print(stepperXSet);
+        lcd.blink();
+        stepperXSet = 0;
+        delay(10);
+        operationStepOne =0;
+      }
+      break;
+
+
+
+  }
+
+
+
+}
